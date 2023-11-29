@@ -8,7 +8,6 @@ app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-
 app.get('/', (req, res) => {
   const searchResults = null;
   const watchlist = getWatchlist(req.cookies.watchlist);
@@ -26,8 +25,12 @@ app.post('/scrape', async (req, res) => {
 
   try {
     const amazonSearchResults = await searchAmazon(productName);
+
+    // Fetch watchlist from cookies
     const watchlist = getWatchlist(req.cookies.watchlist);
+
     const searchResults = amazonSearchResults.map(product => {
+      // Check if the product is in the wishlist
       const isInWatchlist = watchlist.hasOwnProperty(product.title);
       return { ...product, isInWatchlist };
     });
@@ -53,9 +56,17 @@ app.get('/addToWatchlist', (req, res) => {
   }
 
   try {
+    // Fetch watchlist from cookies
     const watchlist = getWatchlist(req.cookies.watchlist);
-    watchlist[productName] = { data: JSON.parse(productData), timestamp: new Date() };
+
+    // Add product to watchlist
+    const product = JSON.parse(productData);
+    const productWithLink = { ...product, link: `https://www.amazon.in${product.link}` };
+    watchlist[productName] = { data: productWithLink, timestamp: new Date() };
+
+    // Set updated watchlist to cookies
     res.cookie('watchlist', JSON.stringify(watchlist));
+
     res.json({ success: true, watchlist });
   } catch (error) {
     console.error('Error adding to watchlist:', error);
@@ -71,9 +82,15 @@ app.get('/revokeWatch', (req, res) => {
   }
 
   try {
+    // Fetch watchlist from cookies
     const watchlist = getWatchlist(req.cookies.watchlist);
+
+    // Remove product from watchlist
     delete watchlist[productName];
+
+    // Set updated watchlist to cookies
     res.cookie('watchlist', JSON.stringify(watchlist));
+
     res.json({ success: true, watchlist });
   } catch (error) {
     console.error('Error revoking from watchlist:', error);
@@ -89,6 +106,8 @@ function getWatchlist(cookieData) {
   } else {
     watchlist = cookieData || {};
   }
+
+  // Convert timestamps to Date objects
   Object.values(watchlist).forEach(item => {
     item.timestamp = new Date(item.timestamp);
   });
@@ -97,9 +116,7 @@ function getWatchlist(cookieData) {
 }
 
 async function searchAmazon(productName) {
-  const browser = await puppeteer.launch({
-    headless:"new"
-  });
+  const browser = await puppeteer.launch();
   const page = await browser.newPage();
   await page.goto(`https://www.amazon.in/s?k=${productName}`);
 
@@ -113,12 +130,13 @@ async function searchAmazon(productName) {
       const imageElement = product.querySelector('.s-image');
 
       const title = titleElement ? titleElement.innerText.trim() : null;
+      const link = titleElement ? titleElement.getAttribute('href') : null;
       const price = priceElement ? priceElement.innerText.trim() : null;
       const rating = ratingElement ? ratingElement.innerText.trim() : null;
       const image = imageElement ? imageElement.src : null;
 
-      if (title && price && rating && image) {
-        return { title, price, rating, image };
+      if (title && link && price && rating && image) {
+        return { title, link, price, rating, image };
       }
 
       return null;

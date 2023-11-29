@@ -7,8 +7,6 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      display: grid;
-      gap: 20px;
     }
 
     h1, h2, p {
@@ -18,14 +16,10 @@
     form {
       text-align: center;
       margin-bottom: 20px;
-      display: flex;
-      gap: 5px;
-      align-items: center;
     }
 
     input {
       padding: 8px;
-      width: 100%;
     }
 
     button {
@@ -38,7 +32,7 @@
       margin-top: 20px;
     }
 
-    th, td {
+   th, td {
       border: 1px solid #ddd;
       padding: 8px;
       text-align: left;
@@ -60,68 +54,93 @@
       margin-top: 20px;
     }
   </style>
-  <script>
-    async function addToWatchlist(productName, productData) {
-      try {
-        const response = await fetch(`/addToWatchlist?productName=${productName}&productData=${productData}`);
-        const result = await response.json();
+<!-- views/index.ejs -->
 
-        if (result.success) {
-          // Update the page without refreshing
-          updatePage(result.watchlist);
-        }
-      } catch (error) {
-        console.error('Error adding to watchlist:', error);
-        alert('Error adding to watchlist. Please try again.');
+<script>
+  async function addToWatchlist(productName, productData) {
+    try {
+      const encodedProductName = encodeURIComponent(productName);
+      const encodedProductData = encodeURIComponent(productData);
+
+      const response = await fetch(`/addToWatchlist?productName=${encodedProductName}&productData=${encodedProductData}`);
+      const result = await response.json();
+
+      if (result && result.success) {
+        // Update the page without refreshing
+        updatePage(result.watchlist);
       }
+    } catch (error) {
+      console.error('Error adding to watchlist:', error);
+      alert('Error adding to watchlist. Please try again.');
     }
+  }
 
-    async function revokeWatch(productName) {
-      try {
-        const response = await fetch(`/revokeWatch?productName=${productName}`);
-        const result = await response.json();
+  async function revokeWatch(productName) {
+    try {
+      const response = await fetch(`/revokeWatch?productName=${productName}`);
+      const result = await response.json();
 
-        if (result.success) {
-          // Update the page without refreshing
-          updatePage(result.watchlist);
-        }
-      } catch (error) {
-        console.error('Error revoking from watchlist:', error);
-        alert('Error revoking from watchlist. Please try again.');
+      if (result && result.success) {
+        // Update the page without refreshing
+        updatePage(result.watchlist);
       }
+    } catch (error) {
+      console.error('Error revoking from watchlist:', error);
+      alert('Error revoking from watchlist. Please try again.');
+    }
+  }
+
+  function updatePage(watchlist) {
+    const wishlistTable = document.getElementById('wishlistTable');
+    const wishlistBody = wishlistTable.querySelector('tbody');
+
+    // Clear existing rows
+    wishlistBody.innerHTML = '';
+
+    // Add rows for each wishlist item
+    Object.entries(watchlist).forEach(([productName, item]) => {
+      const row = wishlistBody.insertRow();
+      row.innerHTML = `
+        <td>${item.data.title}</td>
+        <td>${item.data.price}</td>
+        <td>${item.data.rating}</td>
+        <td><img src="${item.data.image}" alt="Product Image" height="50"></td>
+        <td><a href="${item.data.link}" target="_blank">Link</a></td>
+        <td>
+          <button onclick="revokeWatch('${productName}')">Revoke Watch</button>
+        </td>
+        <td>${item.data.price}</td>
+        <td>${item.timestamp.toLocaleString()}</td>
+      `;
+    });
+  }
+
+  function handleFormSubmit() {
+    const productNameInput = document.getElementById('productName');
+    const productName = productNameInput.value.trim();
+
+    if (!productName) {
+      alert('Please enter a product name.');
+      return false;
     }
 
-    function updatePage(watchlist) {
-      const wishlistTable = document.getElementById('wishlistTable');
-      const wishlistBody = wishlistTable.querySelector('tbody');
+    // Disable the submit button during loading
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Searching...';
 
-      // Clear existing rows
-      wishlistBody.innerHTML = '';
+    return true;
+  }
+</script>
 
-      // Add rows for each wishlist item
-      Object.entries(watchlist).forEach(([productName, item]) => {
-        const row = wishlistBody.insertRow();
-        row.innerHTML = `
-          <td>${item.data.title}</td>
-          <td>${item.data.price}</td>
-          <td>${item.data.rating}</td>
-          <td><img src="${item.data.image}" alt="Product Image" height="50"></td>
-          <td>
-            <button onclick="revokeWatch('${productName}')">Revoke Watch</button>
-          </td>
-          <td>${item.data.price}</td>
-          <td>${item.timestamp.toLocaleString()}</td>
-        `;
-      });
-    }
-  </script>
 </head>
 <body>
-  <h1>Product Price Tracker</h1>
+  <h1>Product Scraper</h1>
 
-  <form method="post" action="/scrape">
-    <input type="text" id="productName" name="productName" required placeholder="Enter Product Name here...">
-    <button type="submit">Search</button>
+  <form method="post" action="/scrape" onsubmit="return handleFormSubmit()">
+    <label for="productName">Enter Product Name:</label>
+    <input type="text" id="productName" name="productName" required>
+    <button type="submit" id="submitBtn">Search</button>
   </form>
 
   <% if (loading) { %>
@@ -132,22 +151,30 @@
     <h2>Search Results:</h2>
     <table>
       <tr>
+        <th>Site</th>
         <th>Product Name</th>
         <th>Price</th>
         <th>Rating</th>
         <th>Image</th>
+        <th>Link</th>
         <th>Action</th>
+        <th>Saved Price</th>
+        <th>Last Updated</th>
       </tr>
 
       <% searchResults.forEach(product => { %>
         <tr>
+          <td>Amazon</td>
           <td><%= product.title %></td>
           <td><%= product.price %></td>
           <td><%= product.rating %></td>
           <td><img src="<%= product.image %>" alt="Product Image" height="50"></td>
+          <td><a href="https://www.amazon.in<%= product.link %>" target="_blank">Link</a></td>
           <td>
             <button onclick="addToWatchlist('<%= product.title %>', '<%= JSON.stringify(product) %>')">Add to Watchlist</button>
           </td>
+          <td></td>
+          <td></td>
         </tr>
       <% }); %>
     </table>
@@ -160,6 +187,7 @@
       <th>Price</th>
       <th>Rating</th>
       <th>Image</th>
+      <th>Link</th>
       <th>Action</th>
       <th>Saved Price</th>
       <th>Last Updated</th>
@@ -171,6 +199,7 @@
         <td><%= item.data.price %></td>
         <td><%= item.data.rating %></td>
         <td><img src="<%= item.data.image %>" alt="Product Image" height="50"></td>
+        <td><a href="<%= item.data.link %>" target="_blank">Link</a></td>
         <td>
           <button onclick="revokeWatch('<%= productName %>')">Revoke Watch</button>
         </td>
@@ -179,9 +208,6 @@
       </tr>
     <% }); %>
   </table>
-
-  <% if (searchResults === 'Please provide a product name.') { %>
-    <p class="error"><%= searchResults %></p>
-  <% } %>
 </body>
 </html>
+
